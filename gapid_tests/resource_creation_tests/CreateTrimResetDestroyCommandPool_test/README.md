@@ -8,6 +8,11 @@ VkResult vkCreateCommandPool(
     const VkAllocationCallbacks*                pAllocator,
     VkCommandPool*                              pCommandPool);
 
+void vkTrimCommandPool(
+    VkDevice                                    device,
+    VkCommandPool                               commandPool,
+    VkCommandPoolTrimFlags                      flags);
+
 VkResult vkResetCommandPool(
     VkDevice                                    device,
     VkCommandPool                               commandPool,
