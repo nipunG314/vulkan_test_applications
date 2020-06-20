@@ -39,6 +39,7 @@ int main_entry(const entry::EntryData* data) {
                                            &raw_command_pool),
                VK_SUCCESS);
     vulkan::VkCommandPool command_pool(raw_command_pool, nullptr, &device);
+    device->vkTrimCommandPool(device, command_pool, 0);
     LOG_ASSERT(==, data->logger(), VK_SUCCESS,
                device->vkResetCommandPool(device, command_pool, 0));
   }
@@ -54,6 +55,7 @@ int main_entry(const entry::EntryData* data) {
                                            &raw_command_pool),
                VK_SUCCESS);
     vulkan::VkCommandPool command_pool(raw_command_pool, nullptr, &device);
+    device->vkTrimCommandPool(device, command_pool, 0);
     LOG_ASSERT(==, data->logger(), VK_SUCCESS,
                device->vkResetCommandPool(device, command_pool, 0));
   }
@@ -71,6 +73,7 @@ int main_entry(const entry::EntryData* data) {
                                            &raw_command_pool),
                VK_SUCCESS);
     vulkan::VkCommandPool command_pool(raw_command_pool, nullptr, &device);
+    device->vkTrimCommandPool(device, command_pool, 0);
     LOG_ASSERT(
         ==, data->logger(), VK_SUCCESS,
         device->vkResetCommandPool(device, command_pool,
@@ -87,6 +90,7 @@ int main_entry(const entry::EntryData* data) {
                                            &raw_command_pool),
                VK_SUCCESS);
     vulkan::VkCommandPool command_pool(raw_command_pool, nullptr, &device);
+    device->vkTrimCommandPool(device, command_pool, 0);
     LOG_ASSERT(
         ==, data->logger(), VK_SUCCESS,
         device->vkResetCommandPool(device, command_pool,

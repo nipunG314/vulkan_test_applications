@@ -29,7 +29,7 @@ COMMAND_POOL_CREATE_INFO = [
 COMMAND_POOL = [("handle", HANDLE)]
 
 
-@gapit_test("CreateResetDestroyCommandPool_test")
+@gapit_test("CreateTrimResetDestroyCommandPool_test")
 class TransientBitCommandPool(GapitTest):
 
     def expect(self):
@@ -73,7 +73,7 @@ class TransientBitCommandPool(GapitTest):
             command_pool.handle, destroy_command_pool.int_commandPool)
 
 
-@gapit_test("CreateResetDestroyCommandPool_test")
+@gapit_test("CreateTrimResetDestroyCommandPool_test")
 class ResetCommandBufferBitCommandPool(GapitTest):
 
     def expect(self):
@@ -118,7 +118,7 @@ class ResetCommandBufferBitCommandPool(GapitTest):
             command_pool.handle, destroy_command_pool.int_commandPool)
 
 
-@gapit_test("CreateResetDestroyCommandPool_test")
+@gapit_test("CreateTrimResetDestroyCommandPool_test")
 class ResetCommandBufferBitTransientBitCommandPool(GapitTest):
 
     def expect(self):
@@ -164,7 +164,7 @@ class ResetCommandBufferBitTransientBitCommandPool(GapitTest):
             command_pool.handle, destroy_command_pool.int_commandPool)
 
 
-@gapit_test("CreateResetDestroyCommandPool_test")
+@gapit_test("CreateTrimResetDestroyCommandPool_test")
 class EmptyBitCommandPool(GapitTest):
 
     def expect(self):

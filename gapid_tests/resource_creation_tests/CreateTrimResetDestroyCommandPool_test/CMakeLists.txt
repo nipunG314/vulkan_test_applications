@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-add_gapid_test(CreateResetDestroyCommandPool_test
+add_gapid_test(CreateTrimResetDestroyCommandPool_test
   SOURCES main.cpp
   LIBS
     vulkan_helpers
