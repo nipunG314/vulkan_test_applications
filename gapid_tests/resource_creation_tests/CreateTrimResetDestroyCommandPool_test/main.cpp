@@ -24,7 +24,7 @@ int main_entry(const entry::EntryData* data) {
   data->logger()->LogInfo("Application Startup");
   vulkan::LibraryWrapper wrapper(data->allocator(), data->logger());
   vulkan::VkInstance instance(
-      vulkan::CreateEmptyInstance(data->allocator(), &wrapper));
+      vulkan::CreateEmptyInstance(data->allocator(), &wrapper, VK_MAKE_VERSION(1, 1, 0)));
   vulkan::VkDevice device(
       vulkan::CreateDefaultDevice(data->allocator(), instance));
 
