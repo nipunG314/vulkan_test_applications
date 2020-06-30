@@ -25,7 +25,7 @@ int main_entry(const entry::EntryData* data) {
   vulkan::LibraryWrapper wrapper(data->allocator(), data->logger());
   vulkan::VkInstance instance(
       // vkTrimCommandPool should only be called with VK version 1.1 and greater
-      vulkan::CreateEmptyInstance(data->allocator(), &wrapper, VK_MAKE_VERSION(1, 1, 0)));
+      vulkan::CreateEmptyInstance(data->allocator(), &wrapper));
   vulkan::VkDevice device(
       vulkan::CreateDefaultDevice(data->allocator(), instance));
 
@@ -92,19 +92,6 @@ int main_entry(const entry::EntryData* data) {
         ==, data->logger(), VK_SUCCESS,
         device->vkResetCommandPool(device, command_pool,
                                    VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
-  }
-
-  {
-    VkCommandPoolCreateInfo pool_info{
-        VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, nullptr, 0, 0};
-
-    ::VkCommandPool raw_command_pool;
-    LOG_ASSERT(==, data->logger(),
-               device->vkCreateCommandPool(device, &pool_info, nullptr,
-                                           &raw_command_pool),
-               VK_SUCCESS);
-    vulkan::VkCommandPool command_pool(raw_command_pool, nullptr, &device);
-    device->vkTrimCommandPool(device, command_pool, 0);
   }
 
   data->logger()->LogInfo("Application Shutdown");
