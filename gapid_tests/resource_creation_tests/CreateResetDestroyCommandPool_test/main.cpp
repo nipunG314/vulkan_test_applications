@@ -24,7 +24,6 @@ int main_entry(const entry::EntryData* data) {
   data->logger()->LogInfo("Application Startup");
   vulkan::LibraryWrapper wrapper(data->allocator(), data->logger());
   vulkan::VkInstance instance(
-      // vkTrimCommandPool should only be called with VK version 1.1 and greater
       vulkan::CreateEmptyInstance(data->allocator(), &wrapper));
   vulkan::VkDevice device(
       vulkan::CreateDefaultDevice(data->allocator(), instance));
