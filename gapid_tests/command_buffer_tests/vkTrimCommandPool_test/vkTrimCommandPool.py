@@ -15,9 +15,6 @@
 from gapit_test_framework import gapit_test, require, require_equal
 from gapit_test_framework import require_not_equal, GapitTest
 from gapit_test_framework import get_read_offset_function, get_write_offset_function
-from vulkan_constants import *
-from struct_offsets import VulkanStruct, UINT32_T, POINTER, HANDLE, DEVICE_SIZE
-from struct_offsets import ARRAY, CHAR
 
 @gapit_test("vkTrimCommandPool_test")
 class EmptyBitCommandPool(GapitTest):
