@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gapit_test_framework import gapit_test, require, require_equal
-from gapit_test_framework import require_not_equal, GapitTest
-from gapit_test_framework import get_read_offset_function, get_write_offset_function
+from gapit_test_framework import gapit_test, GapitTest, require, require_equal
 
 @gapit_test("vkTrimCommandPool_test")
 class EmptyBitCommandPool(GapitTest):
