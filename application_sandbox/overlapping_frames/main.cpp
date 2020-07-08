@@ -125,15 +125,15 @@ containers::vector<vulkan::VkFramebuffer> buildFramebuffers(vulkan::VulkanApplic
         LOG_ASSERT(==, data->logger(), app.device()->vkCreateImageView(app.device(), &image_view_create_info, nullptr, &raw_image_view), VK_SUCCESS);
 
         VkFramebufferCreateInfo framebuffer_create_info {
-            VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-            nullptr,
-            0,
-            render_pass,
-            1,
-            &raw_image_view,
-            app.swapchain().width(),
-            app.swapchain().height(),
-            1
+            VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,  // sType
+            nullptr,                                    // pNext
+            0,                                          // flags
+            render_pass,                                // renderPass
+            1,                                          // attachmentCount
+            &raw_image_view,                            // attachments
+            app.swapchain().width(),                    // width
+            app.swapchain().height(),                   // height
+            1                                           // layers
         };
 
         VkFramebuffer raw_framebuffer;
