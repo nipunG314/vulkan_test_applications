@@ -13,11 +13,14 @@
 // limitations under the License.
 
 #include "application_sandbox/sample_application_framework/sample_application.h"
+#include "support/containers/vector.h"
 #include "support/entry/entry.h"
+#include "vulkan_core.h"
 #include "vulkan_helpers/vulkan_application.h"
 
 #include "mathfu/matrix.h"
 #include "mathfu/vector.h"
+#include "vulkan_wrapper/sub_objects.h"
 
 using Mat44 = mathfu::Matrix<float, 4, 4>;
 using Vector4 = mathfu::Vector<float, 4>;
@@ -91,6 +94,57 @@ vulkan::VulkanGraphicsPipeline buildGraphicsPipeline(vulkan::VulkanApplication& 
     return pipeline;
 }
 
+containers::vector<vulkan::VkFramebuffer> buildFramebuffers(vulkan::VulkanApplication& app, vulkan::VkRenderPass& render_pass, const entry::EntryData* data) {
+    containers::vector<vulkan::VkFramebuffer> framebuffers;
+    framebuffers.reserve(app.swapchain_images().size());
+
+    for(const auto& swapchain_image: app.swapchain_images()) {
+        VkImageViewCreateInfo image_view_create_info {
+            VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,  // sType
+            nullptr,                                   // pNext
+            0,                                         // flags
+            swapchain_image,                           // image
+            VK_IMAGE_VIEW_TYPE_2D,                     // viewType
+            app.swapchain().format(),                  // format
+            {
+                VK_COMPONENT_SWIZZLE_IDENTITY,  // components.r
+                VK_COMPONENT_SWIZZLE_IDENTITY,  // components.g
+                VK_COMPONENT_SWIZZLE_IDENTITY,  // components.b
+                VK_COMPONENT_SWIZZLE_IDENTITY,  // components.a
+            },
+            {
+                VK_IMAGE_ASPECT_COLOR_BIT,  // subresourceRange.aspectMask
+                0,                          // subresourceRange.baseMipLevel
+                1,                          // subresourceRange.levelCount
+                0,                          // subresourceRange.baseArrayLayer
+                1,                          // subresourceRange.layerCount
+            },
+        };
+
+        VkImageView raw_image_view;
+        LOG_ASSERT(==, data->logger(), app.device()->vkCreateImageView(app.device(), &image_view_create_info, nullptr, &raw_image_view), VK_SUCCESS);
+
+        VkFramebufferCreateInfo framebuffer_create_info {
+            VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+            nullptr,
+            0,
+            render_pass,
+            1,
+            &raw_image_view,
+            app.swapchain().width(),
+            app.swapchain().height(),
+            1
+        };
+
+        VkFramebuffer raw_framebuffer;
+        LOG_ASSERT(==, data->logger(), app.device()->vkCreateFramebuffer(app.device(), &framebuffer_create_info, nullptr, &raw_framebuffer), VK_SUCCESS);
+
+        framebuffers.emplace_back(vulkan::VkFramebuffer(raw_framebuffer, nullptr, &app.device()));
+    }
+
+    return framebuffers;
+}
+
 int main_entry(const entry::EntryData* data) {
     data->logger()->LogInfo("Application Startup");
 
@@ -99,6 +153,7 @@ int main_entry(const entry::EntryData* data) {
 
     auto render_pass = buildRenderPass(app);
     auto pipeline = buildGraphicsPipeline(app, &render_pass);
+    auto framebuffers = buildFramebuffers(app, render_pass, data);
 
     data->logger()->LogInfo("Application Shutdown");
     return 0;
