@@ -65,6 +65,30 @@ int main_entry(const entry::EntryData* data) {
         {}                                   // SubpassDependencies
     );
 
+    // Build Graphics Pipeline
+    vulkan::PipelineLayout pipeline_layout(app.CreatePipelineLayout({{}}));
+    vulkan::VulkanGraphicsPipeline pipeline = app.CreateGraphicsPipeline(&pipeline_layout, &render_pass, 0);
+
+    pipeline.AddShader(VK_SHADER_STAGE_VERTEX_BIT, "main", vert_shader);
+    pipeline.AddShader(VK_SHADER_STAGE_FRAGMENT_BIT, "main", frag_shader);
+
+    pipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    pipeline.SetScissor({
+        {0, 0},                                             // offset
+        {app.swapchain().width(), app.swapchain().height()} // extent
+    });
+    pipeline.SetViewport({
+        0.0f,                                           // x
+        0.0f,                                           // y
+        static_cast<float>(app.swapchain().width()),    // width
+        static_cast<float>(app.swapchain().height()),   // height
+        0.0f,                                           // minDepth
+        1.0f                                            // maxDepth
+    });
+    pipeline.SetSamples(VK_SAMPLE_COUNT_1_BIT);
+    pipeline.AddAttachment();
+    pipeline.Commit();
+
     data->logger()->LogInfo("Application Shutdown");
     return 0;
 }
