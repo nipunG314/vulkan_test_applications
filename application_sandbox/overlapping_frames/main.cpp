@@ -22,6 +22,14 @@
 using Mat44 = mathfu::Matrix<float, 4, 4>;
 using Vector4 = mathfu::Vector<float, 4>;
 
+uint32_t vert_shader[] =
+#include "tri.vert.spv"
+    ;
+
+uint32_t frag_shader[] =
+#include "tri.frag.spv"
+    ;
+
 int main_entry(const entry::EntryData* data) {
     data->logger()->LogInfo("Application Startup");
 
