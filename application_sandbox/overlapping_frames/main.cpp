@@ -30,12 +30,7 @@ uint32_t frag_shader[] =
 #include "tri.frag.spv"
     ;
 
-int main_entry(const entry::EntryData* data) {
-    data->logger()->LogInfo("Application Startup");
-
-    vulkan::VulkanApplication app(data->allocator(), data->logger(), data);
-    vulkan::VkDevice& device = app.device();
-
+vulkan::VkRenderPass buildRenderPass(vulkan::VulkanApplication& app) {
     // Build render pass
     VkAttachmentReference color_attachment = {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
     vulkan::VkRenderPass render_pass = app.CreateRenderPass(
@@ -65,9 +60,13 @@ int main_entry(const entry::EntryData* data) {
         {}                                   // SubpassDependencies
     );
 
+    return render_pass;
+}
+
+vulkan::VulkanGraphicsPipeline buildGraphicsPipeline(vulkan::VulkanApplication& app, vulkan::VkRenderPass* render_pass) {
     // Build Graphics Pipeline
     vulkan::PipelineLayout pipeline_layout(app.CreatePipelineLayout({{}}));
-    vulkan::VulkanGraphicsPipeline pipeline = app.CreateGraphicsPipeline(&pipeline_layout, &render_pass, 0);
+    vulkan::VulkanGraphicsPipeline pipeline = app.CreateGraphicsPipeline(&pipeline_layout, render_pass, 0);
 
     pipeline.AddShader(VK_SHADER_STAGE_VERTEX_BIT, "main", vert_shader);
     pipeline.AddShader(VK_SHADER_STAGE_FRAGMENT_BIT, "main", frag_shader);
@@ -88,6 +87,18 @@ int main_entry(const entry::EntryData* data) {
     pipeline.SetSamples(VK_SAMPLE_COUNT_1_BIT);
     pipeline.AddAttachment();
     pipeline.Commit();
+
+    return pipeline;
+}
+
+int main_entry(const entry::EntryData* data) {
+    data->logger()->LogInfo("Application Startup");
+
+    vulkan::VulkanApplication app(data->allocator(), data->logger(), data);
+    vulkan::VkDevice& device = app.device();
+
+    auto render_pass = buildRenderPass(app);
+    auto pipeline = buildGraphicsPipeline(app, &render_pass);
 
     data->logger()->LogInfo("Application Shutdown");
     return 0;
