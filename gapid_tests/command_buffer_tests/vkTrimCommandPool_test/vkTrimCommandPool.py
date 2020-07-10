@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gapit_test_framework import gapit_test, GapitTest, require, require_equal
+from gapit_test_framework import gapit_test, GapitTest
+from gapit_test_framework import require, require_equal, require_not_equal
 
 @gapit_test("vkTrimCommandPool_test")
-class EmptyBitCommandPool(GapitTest):
+class TrimCommandPool(GapitTest):
 
     def expect(self):
         """1. Expects a default command pool that is trimmed for redundant
@@ -23,7 +24,7 @@ class EmptyBitCommandPool(GapitTest):
 
         architecture = self.architecture
 
-        trim_pool = require(self.next_call_of("vkTrimCommandPool"))
-        require_equal(device, trim_pool.int_device)
-        require_equal(command_pool.handle, trim_pool.int_commandPool)
-        require_equal(0, trim_pool.flags)
+        trim_command_pool = require(self.next_call_of("vkTrimCommandPool"))
+        require_not_equal(0, trim_command_pool.int_device)
+        require_not_equal(0, trim_command_pool.int_commandPool)
+        require_equal(0, trim_command_pool.flags)
