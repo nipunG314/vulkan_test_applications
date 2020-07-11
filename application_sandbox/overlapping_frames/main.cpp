@@ -16,6 +16,7 @@
 #include "support/entry/entry.h"
 #include "vulkan_core.h"
 #include "vulkan_helpers/vulkan_application.h"
+#include "vulkan_helpers/helper_functions.h"
 
 #include "mathfu/matrix.h"
 #include "mathfu/vector.h"
@@ -162,6 +163,75 @@ int main_entry(const entry::EntryData* data) {
     auto render_pass = buildRenderPass(app);
     auto pipeline = buildGraphicsPipeline(app, &render_pass);
     auto framebuffers = buildFramebuffers(app, render_pass, data);
+
+    VkClearValue clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
+
+    uint32_t image_index;
+    VkSemaphore image_acquired = CreateSemaphore(&app.device());
+    VkSemaphore render_finished = CreateSemaphore(&app.device());
+
+    while(!data->WindowClosing()) {
+        app.device()->vkAcquireNextImageKHR(
+            app.device(),
+            app.swapchain().get_raw_object(),
+            UINT64_MAX,
+            image_acquired,
+            static_cast<VkFence>(VK_NULL_HANDLE),
+            &image_index
+        );
+
+        VkRenderPassBeginInfo pass_begin {
+            VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            nullptr,
+            render_pass,
+            framebuffers[image_index],
+            {{0, 0}, {app.swapchain().width(), app.swapchain().height()}},
+            1,
+            &clear_color
+        };
+
+        auto cmd_buf = app.GetCommandBuffer();
+        app.BeginCommandBuffer(&cmd_buf);
+        vulkan::RecordImageLayoutTransition(
+            app.swapchain_images()[image_index],
+            {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            0,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            &cmd_buf
+        );
+        cmd_buf->vkCmdBeginRenderPass(cmd_buf, &pass_begin, VK_SUBPASS_CONTENTS_INLINE);
+        cmd_buf->vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        cmd_buf->vkCmdDraw(cmd_buf, 3, 1, 0, 0);
+        cmd_buf->vkCmdEndRenderPass(cmd_buf);
+        LOG_ASSERT(==, data->logger(), VK_SUCCESS,
+            app.EndAndSubmitCommandBuffer(
+                &cmd_buf,
+                &app.render_queue(),
+                {image_acquired},
+                {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
+                {render_finished},
+                static_cast<VkFence>(VK_NULL_HANDLE)
+            )
+        );
+
+        VkSemaphore signal_semaphores[] = {render_finished};
+        VkSwapchainKHR swapchains[] = {app.swapchain().get_raw_object()};
+
+        VkPresentInfoKHR present_info {
+            VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            nullptr,
+            1,
+            signal_semaphores,
+            1,
+            swapchains,
+            &image_index,
+            nullptr
+        };
+
+        app.present_queue()->vkQueuePresentKHR(app.present_queue(), &present_info);
+    }
 
     data->logger()->LogInfo("Application Shutdown");
     return 0;
