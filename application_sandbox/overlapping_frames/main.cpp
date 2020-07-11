@@ -103,11 +103,10 @@ vulkan::VulkanGraphicsPipeline buildGraphicsPipeline(vulkan::VulkanApplication& 
     return pipeline;
 }
 
-containers::vector<vulkan::VkFramebuffer> buildFramebuffers(vulkan::VulkanApplication& app, vulkan::VkRenderPass& render_pass, const entry::EntryData* data) {
-    containers::vector<vulkan::VkFramebuffer> framebuffers;
-    framebuffers.reserve(app.swapchain_images().size());
+void buildFramebuffers(vulkan::VulkanApplication& app, vulkan::VkRenderPass& render_pass, VkFramebuffer* framebuffers, const entry::EntryData* data) {
+    for(int index=0; index < app.swapchain_images().size(); index++) {
+        VkImage& swapchain_image = app.swapchain_images()[index];
 
-    for(const auto& swapchain_image: app.swapchain_images()) {
         VkImageViewCreateInfo image_view_create_info {
             VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,  // sType
             nullptr,                                   // pNext
@@ -145,13 +144,8 @@ containers::vector<vulkan::VkFramebuffer> buildFramebuffers(vulkan::VulkanApplic
             1                                           // layers
         };
 
-        VkFramebuffer raw_framebuffer;
-        LOG_ASSERT(==, data->logger(), app.device()->vkCreateFramebuffer(app.device(), &framebuffer_create_info, nullptr, &raw_framebuffer), VK_SUCCESS);
-
-        framebuffers.emplace_back(vulkan::VkFramebuffer(raw_framebuffer, nullptr, &app.device()));
+        LOG_ASSERT(==, data->logger(), app.device()->vkCreateFramebuffer(app.device(), &framebuffer_create_info, nullptr, &framebuffers[index]), VK_SUCCESS);
     }
-
-    return framebuffers;
 }
 
 int main_entry(const entry::EntryData* data) {
@@ -162,7 +156,9 @@ int main_entry(const entry::EntryData* data) {
 
     auto render_pass = buildRenderPass(app);
     auto pipeline = buildGraphicsPipeline(app, &render_pass);
-    auto framebuffers = buildFramebuffers(app, render_pass, data);
+
+    VkFramebuffer framebuffers[(const int)app.swapchain_images().size()];
+    buildFramebuffers(app, render_pass, framebuffers, data);
 
     VkClearValue clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
 
