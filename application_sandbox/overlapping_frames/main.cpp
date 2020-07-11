@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "application_sandbox/sample_application_framework/sample_application.h"
 #include "support/containers/vector.h"
 #include "support/entry/entry.h"
 #include "vulkan_core.h"
