@@ -59,7 +59,16 @@ vulkan::VkRenderPass buildRenderPass(vulkan::VulkanApplication& app) {
            0,                                // preserveAttachmentCount
            nullptr                           // pPreserveAttachments
         }},                                  // SubpassDescriptions
-        {}                                   // SubpassDependencies
+        {{
+           VK_SUBPASS_EXTERNAL,                             // srcSubpass
+           0,                                               // dstSubpass
+           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,   // srcStageMask
+           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,   // dstStageMsdk
+           0,                                               // srcAccessMask
+           VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+           VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,            // dstAccessMask
+           0                                                // dependencyFlags
+        }}
     );
 
     return render_pass;
