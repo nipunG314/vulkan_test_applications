@@ -227,6 +227,8 @@ int main_entry(const entry::EntryData* data) {
         };
 
         app.present_queue()->vkQueuePresentKHR(app.present_queue(), &present_info);
+
+        app.device()->vkDeviceWaitIdle(app.device());
     }
 
     data->logger()->LogInfo("Application Shutdown");
