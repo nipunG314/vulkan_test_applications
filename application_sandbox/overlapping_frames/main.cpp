@@ -163,15 +163,15 @@ int main_entry(const entry::EntryData* data) {
     VkClearValue clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
 
     uint32_t image_index;
-    VkSemaphore image_acquired = CreateSemaphore(&app.device());
-    VkSemaphore render_finished = CreateSemaphore(&app.device());
 
+    vulkan::VkSemaphore image_acquired = CreateSemaphore(&app.device());
+    vulkan::VkSemaphore render_finished = CreateSemaphore(&app.device());
     while(!data->WindowClosing()) {
         app.device()->vkAcquireNextImageKHR(
             app.device(),
             app.swapchain().get_raw_object(),
             UINT64_MAX,
-            image_acquired,
+            image_acquired.get_raw_object(),
             static_cast<VkFence>(VK_NULL_HANDLE),
             &image_index
         );
@@ -205,14 +205,14 @@ int main_entry(const entry::EntryData* data) {
             app.EndAndSubmitCommandBuffer(
                 &cmd_buf,
                 &app.render_queue(),
-                {image_acquired},
+                {image_acquired.get_raw_object()},
                 {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
-                {render_finished},
+                {render_finished.get_raw_object()},
                 static_cast<VkFence>(VK_NULL_HANDLE)
             )
         );
 
-        VkSemaphore signal_semaphores[] = {render_finished};
+        VkSemaphore signal_semaphores[] = {render_finished.get_raw_object()};
         VkSwapchainKHR swapchains[] = {app.swapchain().get_raw_object()};
 
         VkPresentInfoKHR present_info {
