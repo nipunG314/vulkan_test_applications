@@ -103,7 +103,7 @@ vulkan::VulkanGraphicsPipeline buildGraphicsPipeline(vulkan::VulkanApplication& 
     return pipeline;
 }
 
-void buildFramebuffers(vulkan::VulkanApplication& app, vulkan::VkRenderPass& render_pass, VkFramebuffer* framebuffers, const entry::EntryData* data) {
+void buildFramebuffers(vulkan::VulkanApplication& app, vulkan::VkRenderPass& render_pass, VkImageView* image_views, VkFramebuffer* framebuffers, const entry::EntryData* data) {
     for(int index=0; index < app.swapchain_images().size(); index++) {
         VkImage& swapchain_image = app.swapchain_images()[index];
 
@@ -129,8 +129,7 @@ void buildFramebuffers(vulkan::VulkanApplication& app, vulkan::VkRenderPass& ren
             },
         };
 
-        VkImageView raw_image_view;
-        LOG_ASSERT(==, data->logger(), app.device()->vkCreateImageView(app.device(), &image_view_create_info, nullptr, &raw_image_view), VK_SUCCESS);
+        LOG_ASSERT(==, data->logger(), app.device()->vkCreateImageView(app.device(), &image_view_create_info, nullptr, &image_views[index]), VK_SUCCESS);
 
         VkFramebufferCreateInfo framebuffer_create_info {
             VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,  // sType
@@ -138,13 +137,20 @@ void buildFramebuffers(vulkan::VulkanApplication& app, vulkan::VkRenderPass& ren
             0,                                          // flags
             render_pass,                                // renderPass
             1,                                          // attachmentCount
-            &raw_image_view,                            // attachments
+            &image_views[index],                        // attachments
             app.swapchain().width(),                    // width
             app.swapchain().height(),                   // height
             1                                           // layers
         };
 
         LOG_ASSERT(==, data->logger(), app.device()->vkCreateFramebuffer(app.device(), &framebuffer_create_info, nullptr, &framebuffers[index]), VK_SUCCESS);
+    }
+}
+
+void cleanUpFramebuffers(vulkan::VulkanApplication& app, VkImageView* image_views, VkFramebuffer* framebuffers) {
+    for(int index=0; index<app.swapchain_images().size(); index++) {
+        app.device()->vkDestroyFramebuffer(app.device(), framebuffers[index], nullptr);
+        app.device()->vkDestroyImageView(app.device(), image_views[index], nullptr);
     }
 }
 
@@ -157,8 +163,9 @@ int main_entry(const entry::EntryData* data) {
     auto render_pass = buildRenderPass(app);
     auto pipeline = buildGraphicsPipeline(app, &render_pass);
 
+    VkImageView image_views[(const int)app.swapchain_images().size()];
     VkFramebuffer framebuffers[(const int)app.swapchain_images().size()];
-    buildFramebuffers(app, render_pass, framebuffers, data);
+    buildFramebuffers(app, render_pass, image_views, framebuffers, data);
 
     VkClearValue clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
 
@@ -230,6 +237,8 @@ int main_entry(const entry::EntryData* data) {
 
         app.device()->vkDeviceWaitIdle(app.device());
     }
+
+    cleanUpFramebuffers(app, image_views, framebuffers);
 
     data->logger()->LogInfo("Application Shutdown");
     return 0;
