@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
+#include <utility>
+
+#include "support/containers/unique_ptr.h"
+#include "support/containers/unordered_map.h"
 #include "support/containers/vector.h"
 #include "support/entry/entry.h"
 #include "vulkan_core.h"
@@ -20,10 +25,16 @@
 
 #include "mathfu/matrix.h"
 #include "mathfu/vector.h"
+#include "vulkan_wrapper/command_buffer_wrapper.h"
 #include "vulkan_wrapper/sub_objects.h"
 
 using Mat44 = mathfu::Matrix<float, 4, 4>;
 using Vector4 = mathfu::Vector<float, 4>;
+
+struct CommandTracker {
+    containers::unique_ptr<vulkan::VkCommandBuffer> command_buffer;
+    containers::unique_ptr<vulkan::VkFence> rendering_fence;
+};
 
 uint32_t vert_shader[] =
 #include "tri.vert.spv"
@@ -184,7 +195,6 @@ int main_entry(const entry::EntryData* data) {
     data->logger()->LogInfo("Application Startup");
 
     vulkan::VulkanApplication app(data->allocator(), data->logger(), data);
-    vulkan::VkDevice& device = app.device();
 
     auto render_pass = buildRenderPass(app);
     auto pipeline = buildGraphicsPipeline(app, &render_pass);
@@ -195,14 +205,41 @@ int main_entry(const entry::EntryData* data) {
 
     uint32_t image_index;
 
-    vulkan::VkSemaphore image_acquired = CreateSemaphore(&app.device());
-    vulkan::VkSemaphore render_finished = CreateSemaphore(&app.device());
+    // Synchronization
+    containers::vector<vulkan::VkSemaphore> image_acquired(data->allocator());
+    containers::vector<vulkan::VkSemaphore> render_finished(data->allocator());
+    containers::vector<CommandTracker> command_trackers(data->allocator());
+    containers::unordered_map<uint32_t, uint32_t> images_in_progress(data->allocator());
+    uint32_t current_frame = 0;
+
+    for(int index = 0; index < app.swapchain_images().size(); index++) {
+        image_acquired.push_back(vulkan::CreateSemaphore(&app.device()));
+        render_finished.push_back(vulkan::CreateSemaphore(&app.device()));
+        command_trackers.push_back({
+            containers::make_unique<vulkan::VkCommandBuffer>(
+                data->allocator(),
+                app.GetCommandBuffer()
+            ),
+            containers::make_unique<vulkan::VkFence>(
+                data->allocator(),
+                vulkan::CreateFence(&app.device(), true)
+            )
+        });
+    }
+
     while(!data->WindowClosing()) {
+        app.device()->vkWaitForFences(
+            app.device(),
+            1,
+            &command_trackers[current_frame].rendering_fence->get_raw_object(),
+            VK_TRUE,
+        UINT64_MAX);
+
         app.device()->vkAcquireNextImageKHR(
             app.device(),
             app.swapchain().get_raw_object(),
             UINT64_MAX,
-            image_acquired.get_raw_object(),
+            image_acquired[current_frame].get_raw_object(),
             static_cast<VkFence>(VK_NULL_HANDLE),
             &image_index
         );
@@ -217,8 +254,27 @@ int main_entry(const entry::EntryData* data) {
             &clear_color
         };
 
-        auto cmd_buf = app.GetCommandBuffer();
-        app.BeginCommandBuffer(&cmd_buf);
+        if (images_in_progress.find(image_index) != images_in_progress.end()) {
+            auto frame_for_index = images_in_progress[image_index];
+            app.device()->vkWaitForFences(
+                app.device(),
+                1,
+                &command_trackers[frame_for_index].rendering_fence->get_raw_object(),
+                VK_TRUE,
+            UINT64_MAX);
+            images_in_progress.erase(image_index);
+        }
+
+        app.device()->vkResetFences(
+            app.device(),
+            1,
+            &command_trackers[current_frame].rendering_fence->get_raw_object()
+        );
+
+        auto& cmd_buf = command_trackers[current_frame].command_buffer;
+        vulkan::VkCommandBuffer& ref_cmd_buf = *cmd_buf;
+
+        app.BeginCommandBuffer(cmd_buf.get());
         vulkan::RecordImageLayoutTransition(
             app.swapchain_images()[image_index],
             {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
@@ -226,24 +282,27 @@ int main_entry(const entry::EntryData* data) {
             0,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            &cmd_buf
+            cmd_buf.get()
         );
-        cmd_buf->vkCmdBeginRenderPass(cmd_buf, &pass_begin, VK_SUBPASS_CONTENTS_INLINE);
-        cmd_buf->vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-        cmd_buf->vkCmdDraw(cmd_buf, 3, 1, 0, 0);
-        cmd_buf->vkCmdEndRenderPass(cmd_buf);
+
+        ref_cmd_buf->vkCmdBeginRenderPass(ref_cmd_buf, &pass_begin, VK_SUBPASS_CONTENTS_INLINE);
+        ref_cmd_buf->vkCmdBindPipeline(ref_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        ref_cmd_buf->vkCmdDraw(ref_cmd_buf, 3, 1, 0, 0);
+        ref_cmd_buf->vkCmdEndRenderPass(ref_cmd_buf);
         LOG_ASSERT(==, data->logger(), VK_SUCCESS,
             app.EndAndSubmitCommandBuffer(
-                &cmd_buf,
+                cmd_buf.get(),
                 &app.render_queue(),
-                {image_acquired.get_raw_object()},
+                {image_acquired[current_frame].get_raw_object()},
                 {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
-                {render_finished.get_raw_object()},
-                static_cast<VkFence>(VK_NULL_HANDLE)
+                {render_finished[current_frame].get_raw_object()},
+                command_trackers[current_frame].rendering_fence->get_raw_object()
             )
         );
 
-        VkSemaphore signal_semaphores[] = {render_finished.get_raw_object()};
+        images_in_progress.insert({image_index, current_frame});
+
+        VkSemaphore signal_semaphores[] = {render_finished[current_frame].get_raw_object()};
         VkSwapchainKHR swapchains[] = {app.swapchain().get_raw_object()};
 
         VkPresentInfoKHR present_info {
@@ -259,9 +318,11 @@ int main_entry(const entry::EntryData* data) {
 
         app.present_queue()->vkQueuePresentKHR(app.present_queue(), &present_info);
 
-        app.device()->vkDeviceWaitIdle(app.device());
+        current_frame = (current_frame + 1) % app.swapchain_images().size();
     }
 
+    app.device()->vkDeviceWaitIdle(app.device());
     data->logger()->LogInfo("Application Shutdown");
+
     return 0;
 }
