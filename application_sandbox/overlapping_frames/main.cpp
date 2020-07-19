@@ -117,7 +117,41 @@ vulkan::VulkanGraphicsPipeline buildGraphicsPipeline(vulkan::VulkanApplication& 
     return pipeline;
 }
 
-containers::vector<vulkan::VkImageView> buildImageViews(
+containers::vector<vulkan::ImagePointer> buildTempImages(
+    vulkan::VulkanApplication& app,
+    const entry::EntryData* data) {
+    containers::vector<vulkan::ImagePointer> images(data->allocator());
+
+    for(int index=0; index<app.swapchain_images().size(); index++) {
+        VkImageCreateInfo image_create_info = {
+            VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,    // sType
+            nullptr,                                // pNext
+            0,                                      // flags
+            VK_IMAGE_TYPE_2D,                       // imageType
+            app.swapchain().format(),               // format
+            {
+                app.swapchain().width(),            // width
+                app.swapchain().height(),           // height
+                1                                   // depth
+            },                                      // extent
+            1,                                      // mipLevels
+            1,                                      // arrayLayers
+            VK_SAMPLE_COUNT_1_BIT,                  // samples
+            VK_IMAGE_TILING_OPTIMAL,                // tiling
+            VK_IMAGE_USAGE_SAMPLED_BIT |
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,    // usage
+            VK_SHARING_MODE_EXCLUSIVE,              // sharingMode
+            0,                                      // queueFamilyIndexCount
+            nullptr,                                // pQueueFamilyIndices
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL// initialLayout
+        };
+        images.push_back(app.CreateAndBindImage(&image_create_info));
+    }
+
+    return images;
+}
+
+containers::vector<vulkan::VkImageView> buildSwapchainImageViews(
     vulkan::VulkanApplication& app,
     const entry::EntryData* data) {
     containers::vector<vulkan::VkImageView> image_views(data->allocator());
@@ -130,6 +164,50 @@ containers::vector<vulkan::VkImageView> buildImageViews(
             nullptr,                                   // pNext
             0,                                         // flags
             swapchain_image,                           // image
+            VK_IMAGE_VIEW_TYPE_2D,                     // viewType
+            app.swapchain().format(),                  // format
+            {
+                VK_COMPONENT_SWIZZLE_IDENTITY,  // components.r
+                VK_COMPONENT_SWIZZLE_IDENTITY,  // components.g
+                VK_COMPONENT_SWIZZLE_IDENTITY,  // components.b
+                VK_COMPONENT_SWIZZLE_IDENTITY,  // components.a
+            },
+            {
+                VK_IMAGE_ASPECT_COLOR_BIT,  // subresourceRange.aspectMask
+                0,                          // subresourceRange.baseMipLevel
+                1,                          // subresourceRange.levelCount
+                0,                          // subresourceRange.baseArrayLayer
+                1,                          // subresourceRange.layerCount
+            },
+        };
+
+        VkImageView raw_image_view;
+        LOG_ASSERT(==, data->logger(), app.device()->vkCreateImageView(
+            app.device(),
+            &image_view_create_info,
+            nullptr,
+            &raw_image_view
+        ), VK_SUCCESS);
+        image_views.push_back(vulkan::VkImageView(raw_image_view, nullptr, &app.device()));
+    }
+
+    return image_views;
+}
+
+containers::vector<vulkan::VkImageView> buildTempImageViews(
+    vulkan::VulkanApplication& app,
+    containers::vector<vulkan::ImagePointer>& images,
+    const entry::EntryData* data) {
+    containers::vector<vulkan::VkImageView> image_views(data->allocator());
+
+    for(int index=0; index < images.size(); index++) {
+        auto temp_image = images[index].get();
+
+        VkImageViewCreateInfo image_view_create_info {
+            VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,  // sType
+            nullptr,                                   // pNext
+            0,                                         // flags
+            temp_image->get_raw_image(),               // image
             VK_IMAGE_VIEW_TYPE_2D,                     // viewType
             app.swapchain().format(),                  // format
             {
@@ -201,7 +279,7 @@ int main_entry(const entry::EntryData* data) {
 
     auto render_pass = buildRenderPass(app);
     auto pipeline = buildGraphicsPipeline(app, &render_pass);
-    auto image_views = buildImageViews(app, data);
+    auto image_views = buildSwapchainImageViews(app, data);
     auto framebuffers = buildFramebuffers(app, render_pass, image_views, data);
 
     VkClearValue clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
