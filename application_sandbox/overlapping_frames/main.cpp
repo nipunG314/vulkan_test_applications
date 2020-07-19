@@ -44,7 +44,10 @@ uint32_t frag_shader[] =
 #include "tri.frag.spv"
     ;
 
-vulkan::VkRenderPass buildRenderPass(vulkan::VulkanApplication& app) {
+vulkan::VkRenderPass buildRenderPass(
+    vulkan::VulkanApplication& app,
+    VkImageLayout initial_layout = VK_IMAGE_LAYOUT_UNDEFINED,
+    VkImageLayout final_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
     // Build render pass
     VkAttachmentReference color_attachment = {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
     vulkan::VkRenderPass render_pass = app.CreateRenderPass(
@@ -56,8 +59,8 @@ vulkan::VkRenderPass buildRenderPass(vulkan::VulkanApplication& app) {
            VK_ATTACHMENT_STORE_OP_STORE,             // storeOp
            VK_ATTACHMENT_LOAD_OP_DONT_CARE,          // stenilLoadOp
            VK_ATTACHMENT_STORE_OP_DONT_CARE,         // stenilStoreOp
-           VK_IMAGE_LAYOUT_UNDEFINED,                // initialLayout
-           VK_IMAGE_LAYOUT_PRESENT_SRC_KHR           // finalLayout
+           initial_layout,                           // initialLayout
+           final_layout                              // finalLayout
         }},                                          // AttachmentDescriptions
         {{
            0,                                // flags
