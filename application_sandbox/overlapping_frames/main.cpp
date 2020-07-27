@@ -325,7 +325,7 @@ int main_entry(const entry::EntryData* data) {
     //containers::vector<vulkan::VkSemaphore> render_finished(data->allocator());
     //containers::vector<CommandTracker> command_trackers(data->allocator());
     //containers::unordered_map<uint32_t, uint32_t> images_in_progress(data->allocator());
-    uint32_t tri_frame = 0;
+    uint32_t current_frame = 0;
 
     /*for(int index = 0; index < app.swapchain_images().size(); index++) {
         image_acquired.push_back(vulkan::CreateSemaphore(&app.device()));
@@ -346,32 +346,32 @@ int main_entry(const entry::EntryData* data) {
         app.device()->vkWaitForFences(
             app.device(),
             1,
-            &command_trackers_triangle[tri_frame].rendering_fence->get_raw_object(),
+            &command_trackers_triangle[current_frame].rendering_fence->get_raw_object(),
             VK_TRUE,
             UINT64_MAX
         );
         app.device()->vkResetFences(
             app.device(),
             1,
-            &command_trackers_triangle[tri_frame].rendering_fence->get_raw_object()
+            &command_trackers_triangle[current_frame].rendering_fence->get_raw_object()
         );
 
         VkRenderPassBeginInfo pass_begin_triangle {
             VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
             nullptr,
             render_pass_triangle,
-            framebuffers_triangle[tri_frame].get_raw_object(),
+            framebuffers_triangle[current_frame].get_raw_object(),
             {{0, 0}, {app.swapchain().width(), app.swapchain().height()}},
             1,
             &clear_color
         };
 
-        auto& cmd_buf = command_trackers_triangle[tri_frame].command_buffer;
+        auto& cmd_buf = command_trackers_triangle[current_frame].command_buffer;
         vulkan::VkCommandBuffer& ref_cmd_buf = *cmd_buf;
 
         app.BeginCommandBuffer(cmd_buf.get());
         vulkan::RecordImageLayoutTransition(
-            app.swapchain_images()[tri_frame],
+            app.swapchain_images()[current_frame],
             {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
             VK_IMAGE_LAYOUT_UNDEFINED,
             0,
@@ -391,11 +391,11 @@ int main_entry(const entry::EntryData* data) {
                 {},
                 {},
                 {},
-                command_trackers_triangle[tri_frame].rendering_fence->get_raw_object()
+                command_trackers_triangle[current_frame].rendering_fence->get_raw_object()
             )
         );
 
-        tri_frame = (tri_frame + 1) % app.swapchain_images().size();
+        current_frame = (current_frame + 1) % app.swapchain_images().size();
 
         /*app.device()->vkWaitForFences(
             app.device(),
