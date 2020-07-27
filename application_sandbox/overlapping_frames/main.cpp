@@ -143,7 +143,7 @@ containers::vector<vulkan::ImagePointer> buildTempImages(
             VK_SHARING_MODE_EXCLUSIVE,              // sharingMode
             0,                                      // queueFamilyIndexCount
             nullptr,                                // pQueueFamilyIndices
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL// initialLayout
+            VK_IMAGE_LAYOUT_UNDEFINED               // initialLayout
         };
         images.push_back(app.CreateAndBindImage(&image_create_info));
     }
@@ -283,7 +283,7 @@ int main_entry(const entry::EntryData* data) {
     auto render_pass_triangle = buildRenderPass(
         app,
         VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     );
     auto pipeline_triangle = buildGraphicsPipeline(app, &render_pass_triangle);
     auto image_views_triangle = buildTempImageViews(app, temp_images, data);
