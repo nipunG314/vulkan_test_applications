@@ -277,23 +277,57 @@ int main_entry(const entry::EntryData* data) {
 
     vulkan::VulkanApplication app(data->allocator(), data->logger(), data);
 
-    auto render_pass = buildRenderPass(app);
-    auto pipeline = buildGraphicsPipeline(app, &render_pass);
-    auto image_views = buildSwapchainImageViews(app, data);
-    auto framebuffers = buildFramebuffers(app, render_pass, image_views, data);
+    auto temp_images = buildTempImages(app, data);
+
+    // Triangle Render Pass
+    auto render_pass_triangle = buildRenderPass(
+        app,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+    );
+    auto pipeline_triangle = buildGraphicsPipeline(app, &render_pass_triangle);
+    auto image_views_triangle = buildTempImageViews(app, temp_images, data);
+    auto framebuffers_triangle = buildFramebuffers(
+        app,
+        render_pass_triangle,
+        image_views_triangle,
+        data
+    );
+
+    // Triangle Synchronization
+    containers::vector<CommandTracker> command_trackers_triangle(data->allocator());
+    //containers::unordered_map<uint32_t, uint32_t> progress_triangle(data->allocator());
+
+    for(int index = 0; index < app.swapchain_images().size(); index++) {
+        command_trackers_triangle.push_back({
+            containers::make_unique<vulkan::VkCommandBuffer>(
+                data->allocator(),
+                app.GetCommandBuffer()
+            ),
+            containers::make_unique<vulkan::VkFence>(
+                data->allocator(),
+                vulkan::CreateFence(&app.device(), 1)
+            )
+        });
+    }
+
+    //auto render_pass = buildRenderPass(app);
+    //auto pipeline = buildGraphicsPipeline(app, &render_pass);
+    //auto image_views = buildSwapchainImageViews(app, data);
+    //auto framebuffers = buildFramebuffers(app, render_pass, image_views, data);
 
     VkClearValue clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    uint32_t image_index;
+    //uint32_t image_index;
 
     // Synchronization
-    containers::vector<vulkan::VkSemaphore> image_acquired(data->allocator());
-    containers::vector<vulkan::VkSemaphore> render_finished(data->allocator());
-    containers::vector<CommandTracker> command_trackers(data->allocator());
-    containers::unordered_map<uint32_t, uint32_t> images_in_progress(data->allocator());
-    uint32_t current_frame = 0;
+    //containers::vector<vulkan::VkSemaphore> image_acquired(data->allocator());
+    //containers::vector<vulkan::VkSemaphore> render_finished(data->allocator());
+    //containers::vector<CommandTracker> command_trackers(data->allocator());
+    //containers::unordered_map<uint32_t, uint32_t> images_in_progress(data->allocator());
+    uint32_t tri_frame = 0;
 
-    for(int index = 0; index < app.swapchain_images().size(); index++) {
+    /*for(int index = 0; index < app.swapchain_images().size(); index++) {
         image_acquired.push_back(vulkan::CreateSemaphore(&app.device()));
         render_finished.push_back(vulkan::CreateSemaphore(&app.device()));
         command_trackers.push_back({
@@ -306,10 +340,64 @@ int main_entry(const entry::EntryData* data) {
                 vulkan::CreateFence(&app.device(), true)
             )
         });
-    }
+    }*/
 
     while(!data->WindowClosing()) {
         app.device()->vkWaitForFences(
+            app.device(),
+            1,
+            &command_trackers_triangle[tri_frame].rendering_fence->get_raw_object(),
+            VK_TRUE,
+            UINT64_MAX
+        );
+        app.device()->vkResetFences(
+            app.device(),
+            1,
+            &command_trackers_triangle[tri_frame].rendering_fence->get_raw_object()
+        );
+
+        VkRenderPassBeginInfo pass_begin_triangle {
+            VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            nullptr,
+            render_pass_triangle,
+            framebuffers_triangle[tri_frame].get_raw_object(),
+            {{0, 0}, {app.swapchain().width(), app.swapchain().height()}},
+            1,
+            &clear_color
+        };
+
+        auto& cmd_buf = command_trackers_triangle[tri_frame].command_buffer;
+        vulkan::VkCommandBuffer& ref_cmd_buf = *cmd_buf;
+
+        app.BeginCommandBuffer(cmd_buf.get());
+        vulkan::RecordImageLayoutTransition(
+            app.swapchain_images()[tri_frame],
+            {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            0,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            cmd_buf.get()
+        );
+
+        ref_cmd_buf->vkCmdBeginRenderPass(ref_cmd_buf, &pass_begin_triangle, VK_SUBPASS_CONTENTS_INLINE);
+        ref_cmd_buf->vkCmdBindPipeline(ref_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_triangle);
+        ref_cmd_buf->vkCmdDraw(ref_cmd_buf, 3, 1, 0, 0);
+        ref_cmd_buf->vkCmdEndRenderPass(ref_cmd_buf);
+        LOG_ASSERT(==, data->logger(), VK_SUCCESS,
+            app.EndAndSubmitCommandBuffer(
+                cmd_buf.get(),
+                &app.render_queue(),
+                {},
+                {},
+                {},
+                command_trackers_triangle[tri_frame].rendering_fence->get_raw_object()
+            )
+        );
+
+        tri_frame = (tri_frame + 1) % app.swapchain_images().size();
+
+        /*app.device()->vkWaitForFences(
             app.device(),
             1,
             &command_trackers[current_frame].rendering_fence->get_raw_object(),
@@ -399,7 +487,7 @@ int main_entry(const entry::EntryData* data) {
 
         app.present_queue()->vkQueuePresentKHR(app.present_queue(), &present_info);
 
-        current_frame = (current_frame + 1) % app.swapchain_images().size();
+        current_frame = (current_frame + 1) % app.swapchain_images().size();*/
     }
 
     app.device()->vkDeviceWaitIdle(app.device());
