@@ -16,6 +16,9 @@
 #version 450
 #include "models/model_setup.glsl"
 
+layout(location = 0) out vec2 fragTexCoord;
+
 void main() {
     gl_Position =  get_position();
+    fragTexCoord = get_texcoord();
 }

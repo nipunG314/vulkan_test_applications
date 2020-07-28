@@ -27,6 +27,7 @@
 #include "mathfu/vector.h"
 #include "vulkan_helpers/vulkan_model.h"
 #include "vulkan_wrapper/command_buffer_wrapper.h"
+#include "vulkan_wrapper/descriptor_set_wrapper.h"
 #include "vulkan_wrapper/sub_objects.h"
 
 using Mat44 = mathfu::Matrix<float, 4, 4>;
@@ -131,9 +132,12 @@ vulkan::VulkanGraphicsPipeline buildTrianglePipeline(vulkan::VulkanApplication& 
     return pipeline;
 }
 
-vulkan::VulkanGraphicsPipeline buildPostPipeline(vulkan::VulkanApplication& app, vulkan::VkRenderPass* render_pass, vulkan::VulkanModel* screen) {
+vulkan::VulkanGraphicsPipeline buildPostPipeline(
+    vulkan::VulkanApplication& app,
+    vulkan::PipelineLayout& pipeline_layout,
+    vulkan::VkRenderPass* render_pass,
+    vulkan::VulkanModel* screen) {
     // Build Post Pipeline
-    vulkan::PipelineLayout pipeline_layout(app.CreatePipelineLayout({{}}));
     vulkan::VulkanGraphicsPipeline pipeline = app.CreateGraphicsPipeline(&pipeline_layout, render_pass, 0);
 
     pipeline.AddShader(VK_SHADER_STAGE_VERTEX_BIT, "main", post_vert_shader);
@@ -315,6 +319,42 @@ containers::vector<vulkan::VkFramebuffer> buildFramebuffers(
     return framebuffers;
 }
 
+vulkan::DescriptorSet buildDescriptorSet(
+    vulkan::VulkanApplication& app,
+    vulkan::VkSampler& sampler,
+    vulkan::VkImageView& image_view) {
+    auto descriptor_set = app.AllocateDescriptorSet({{
+        0,
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        1,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+        nullptr
+    }});
+
+    VkDescriptorImageInfo image_info = {
+        sampler.get_raw_object(),
+        image_view.get_raw_object(),
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    };
+
+    VkWriteDescriptorSet write{
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,    // sType
+        nullptr,                                   // pNext
+        descriptor_set,                            // dstSet
+        0,                                         // dstbinding
+        0,                                         // dstArrayElement
+        1,                                         // descriptorCount
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // descriptorType
+        &image_info,                               // pImageInfo
+        nullptr,                                   // pBufferInfo
+        nullptr,                                   // pTexelBufferView
+    };
+
+    app.device()->vkUpdateDescriptorSets(app.device(), 1, &write, 0, nullptr);
+
+    return descriptor_set;
+}
+
 int main_entry(const entry::EntryData* data) {
     data->logger()->LogInfo("Application Startup");
 
@@ -345,6 +385,18 @@ int main_entry(const entry::EntryData* data) {
         UINT64_MAX
     );
 
+    // Default Sampler
+    auto sampler = CreateDefaultSampler(&app.device());
+
+    // Pipeline Layout
+    auto post_pipeline_layout = app.CreatePipelineLayout({{{
+        0,
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        1,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+        nullptr
+    }}});
+
     // Triangle Render Pass
     auto render_pass_triangle = buildRenderPass(
         app,
@@ -366,7 +418,7 @@ int main_entry(const entry::EntryData* data) {
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
     );
-    auto pipeline_post = buildPostPipeline(app, &render_pass_post, &screen);
+    auto pipeline_post = buildPostPipeline(app, post_pipeline_layout, &render_pass_post, &screen);
     auto image_views_post = buildSwapchainImageViews(app, data);
     auto framebuffers_post = buildFramebuffers(
         app,
@@ -506,6 +558,21 @@ int main_entry(const entry::EntryData* data) {
         );
 
         post_ref_cmd->vkCmdBeginRenderPass(post_ref_cmd, &pass_begin_post, VK_SUBPASS_CONTENTS_INLINE);
+        auto descriptor_set = buildDescriptorSet(
+            app,
+            sampler,
+            image_views_triangle[current_frame]
+        );
+        post_ref_cmd->vkCmdBindDescriptorSets(
+            post_ref_cmd,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            post_pipeline_layout,
+            0,
+            1,
+            &descriptor_set.raw_set(),
+            0,
+            nullptr
+        );
         post_ref_cmd->vkCmdBindPipeline(post_ref_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_post);
         screen.Draw(&post_ref_cmd);
         post_ref_cmd->vkCmdEndRenderPass(post_ref_cmd);
