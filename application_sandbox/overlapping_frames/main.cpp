@@ -22,16 +22,10 @@
 #include "vulkan_core.h"
 #include "vulkan_helpers/vulkan_application.h"
 #include "vulkan_helpers/helper_functions.h"
-
-#include "mathfu/matrix.h"
-#include "mathfu/vector.h"
 #include "vulkan_helpers/vulkan_model.h"
 #include "vulkan_wrapper/command_buffer_wrapper.h"
 #include "vulkan_wrapper/descriptor_set_wrapper.h"
 #include "vulkan_wrapper/sub_objects.h"
-
-using Mat44 = mathfu::Matrix<float, 4, 4>;
-using Vector4 = mathfu::Vector<float, 4>;
 
 struct CommandTracker {
     containers::unique_ptr<vulkan::VkCommandBuffer> command_buffer;
@@ -523,15 +517,6 @@ int main_entry(const entry::EntryData* data) {
         auto& tri_cmd_buf = command_buffers_triangle[current_frame];
 
         app.BeginCommandBuffer(&tri_cmd_buf);
-        /*vulkan::RecordImageLayoutTransition(
-            app.swapchain_images()[current_frame],
-            {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            0,
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            &tri_cmd_buf
-        );*/
 
         tri_cmd_buf->vkCmdBeginRenderPass(tri_cmd_buf, &pass_begin_triangle, VK_SUBPASS_CONTENTS_INLINE);
         tri_cmd_buf->vkCmdBindPipeline(tri_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_triangle);
@@ -612,98 +597,6 @@ int main_entry(const entry::EntryData* data) {
         app.present_queue()->vkQueuePresentKHR(app.present_queue(), &present_info);
 
         current_frame = (current_frame + 1) % app.swapchain_images().size();
-
-        /*app.device()->vkWaitForFences(
-            app.device(),
-            1,
-            &command_trackers[current_frame].rendering_fence->get_raw_object(),
-            VK_TRUE,
-        UINT64_MAX);
-
-        app.device()->vkAcquireNextImageKHR(
-            app.device(),
-            app.swapchain().get_raw_object(),
-            UINT64_MAX,
-            image_acquired[current_frame].get_raw_object(),
-            static_cast<VkFence>(VK_NULL_HANDLE),
-            &image_index
-        );
-
-        VkRenderPassBeginInfo pass_begin {
-            VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            nullptr,
-            render_pass,
-            framebuffers[image_index],
-            {{0, 0}, {app.swapchain().width(), app.swapchain().height()}},
-            1,
-            &clear_color
-        };
-
-        if (images_in_progress.find(image_index) != images_in_progress.end()) {
-            auto frame_for_index = images_in_progress[image_index];
-            app.device()->vkWaitForFences(
-                app.device(),
-                1,
-                &command_trackers[frame_for_index].rendering_fence->get_raw_object(),
-                VK_TRUE,
-            UINT64_MAX);
-            images_in_progress.erase(image_index);
-        }
-
-        app.device()->vkResetFences(
-            app.device(),
-            1,
-            &command_trackers[current_frame].rendering_fence->get_raw_object()
-        );
-
-        auto& cmd_buf = command_trackers[current_frame].command_buffer;
-        vulkan::VkCommandBuffer& ref_cmd_buf = *cmd_buf;
-
-        app.BeginCommandBuffer(cmd_buf.get());
-        vulkan::RecordImageLayoutTransition(
-            app.swapchain_images()[image_index],
-            {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            0,
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            cmd_buf.get()
-        );
-
-        ref_cmd_buf->vkCmdBeginRenderPass(ref_cmd_buf, &pass_begin, VK_SUBPASS_CONTENTS_INLINE);
-        ref_cmd_buf->vkCmdBindPipeline(ref_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-        ref_cmd_buf->vkCmdDraw(ref_cmd_buf, 3, 1, 0, 0);
-        ref_cmd_buf->vkCmdEndRenderPass(ref_cmd_buf);
-        LOG_ASSERT(==, data->logger(), VK_SUCCESS,
-            app.EndAndSubmitCommandBuffer(
-                cmd_buf.get(),
-                &app.render_queue(),
-                {image_acquired[current_frame].get_raw_object()},
-                {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
-                {render_finished[current_frame].get_raw_object()},
-                command_trackers[current_frame].rendering_fence->get_raw_object()
-            )
-        );
-
-        images_in_progress.insert({image_index, current_frame});
-
-        VkSemaphore signal_semaphores[] = {render_finished[current_frame].get_raw_object()};
-        VkSwapchainKHR swapchains[] = {app.swapchain().get_raw_object()};
-
-        VkPresentInfoKHR present_info {
-            VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-            nullptr,
-            1,
-            signal_semaphores,
-            1,
-            swapchains,
-            &image_index,
-            nullptr
-        };
-
-        app.present_queue()->vkQueuePresentKHR(app.present_queue(), &present_info);
-
-        current_frame = (current_frame + 1) % app.swapchain_images().size();*/
     }
 
     app.device()->vkDeviceWaitIdle(app.device());
