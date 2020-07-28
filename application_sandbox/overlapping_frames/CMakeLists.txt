@@ -16,6 +16,8 @@ add_shader_library(overlapping_shaders
   SOURCES
     tri.frag
     tri.vert
+    post.frag
+    post.vert
   SHADER_DEPS
     shader_library
 )
