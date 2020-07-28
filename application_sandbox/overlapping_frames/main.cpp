@@ -58,6 +58,7 @@ vulkan::VkRenderPass buildRenderPass(
     vulkan::VulkanApplication& app,
     VkImageLayout initial_layout = VK_IMAGE_LAYOUT_UNDEFINED,
     VkImageLayout final_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
+
     // Build render pass
     VkAttachmentReference color_attachment = {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
     vulkan::VkRenderPass render_pass = app.CreateRenderPass(
@@ -99,7 +100,9 @@ vulkan::VkRenderPass buildRenderPass(
     return render_pass;
 }
 
-vulkan::VulkanGraphicsPipeline buildTrianglePipeline(vulkan::VulkanApplication& app, vulkan::VkRenderPass* render_pass) {
+vulkan::VulkanGraphicsPipeline buildTrianglePipeline(
+    vulkan::VulkanApplication& app,
+    vulkan::VkRenderPass* render_pass) {
     // Build Triangle Pipeline
     vulkan::PipelineLayout pipeline_layout(app.CreatePipelineLayout({{}}));
     vulkan::VulkanGraphicsPipeline pipeline = app.CreateGraphicsPipeline(&pipeline_layout, render_pass, 0);
