@@ -455,7 +455,7 @@ int main_entry(const entry::EntryData* data) {
         });
     }
 
-    VkClearValue clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
+    VkClearValue clear_color = {1.0f, 1.0f, 1.0f, 1.0f};
 
     uint32_t image_index;
 
