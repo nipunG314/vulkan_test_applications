@@ -36,6 +36,7 @@ using Vector4 = mathfu::Vector<float, 4>;
 struct CommandTracker {
     containers::unique_ptr<vulkan::VkCommandBuffer> command_buffer;
     containers::unique_ptr<vulkan::VkFence> rendering_fence;
+    containers::unique_ptr<vulkan::DescriptorSet> descriptor_set;
 };
 
 uint32_t tri_vert_shader[] =
@@ -451,6 +452,10 @@ int main_entry(const entry::EntryData* data) {
             containers::make_unique<vulkan::VkFence>(
                 data->allocator(),
                 vulkan::CreateFence(&app.device(), 1)
+            ),
+            containers::make_unique<vulkan::DescriptorSet>(
+                data->allocator(),
+                buildDescriptorSet(app, sampler, image_views_triangle[index])
             )
         });
     }
@@ -558,18 +563,13 @@ int main_entry(const entry::EntryData* data) {
         );
 
         post_ref_cmd->vkCmdBeginRenderPass(post_ref_cmd, &pass_begin_post, VK_SUBPASS_CONTENTS_INLINE);
-        auto descriptor_set = buildDescriptorSet(
-            app,
-            sampler,
-            image_views_triangle[current_frame]
-        );
         post_ref_cmd->vkCmdBindDescriptorSets(
             post_ref_cmd,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             post_pipeline_layout,
             0,
             1,
-            &descriptor_set.raw_set(),
+            &command_trackers_post[current_frame].descriptor_set.get()->raw_set(),
             0,
             nullptr
         );
