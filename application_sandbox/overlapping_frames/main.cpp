@@ -487,7 +487,7 @@ int main_entry(const entry::EntryData* data) {
             app.device()->vkWaitForFences(
                 app.device(),
                 1,
-                &command_trackers_post[current_frame].rendering_fence->get_raw_object(),
+                &command_trackers_post[frame_index].rendering_fence->get_raw_object(),
                 VK_TRUE,
                 UINT64_MAX
             );
