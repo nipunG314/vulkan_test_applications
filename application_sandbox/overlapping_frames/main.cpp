@@ -456,7 +456,7 @@ int main_entry(const entry::EntryData* data) {
         });
     }
 
-    VkClearValue clear_color = {1.0f, 1.0f, 1.0f, 1.0f};
+    VkClearValue clear_color = {0.40f, 0.94f, 0.59f, 1.0f};
 
     uint32_t current_frame = 0;
     uint32_t next_frame = 1;
