@@ -434,7 +434,6 @@ int main_entry(const entry::EntryData* data) {
     containers::vector<vulkan::VkSemaphore> render_finished_post(data->allocator());
     containers::vector<CommandTracker> command_trackers_post(data->allocator());
     containers::unordered_map<uint32_t, uint32_t> progress_post(data->allocator());
-    uint32_t current_frame = 0;
 
     for(int index = 0; index < app.swapchain_images().size(); index++) {
         command_buffers_triangle.push_back(app.GetCommandBuffer());
@@ -459,17 +458,92 @@ int main_entry(const entry::EntryData* data) {
 
     VkClearValue clear_color = {1.0f, 1.0f, 1.0f, 1.0f};
 
+    uint32_t current_frame = 0;
+    uint32_t next_frame = 1;
     uint32_t image_index;
 
+    // RP1
+    app.device()->vkResetFences(
+        app.device(),
+        1,
+        &command_trackers_post[current_frame].rendering_fence->get_raw_object()
+    );
+
+    VkRenderPassBeginInfo pass_begin_triangle {
+        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        nullptr,
+        render_pass_triangle,
+        framebuffers_triangle[current_frame].get_raw_object(),
+        {{0, 0}, {app.swapchain().width(), app.swapchain().height()}},
+        1,
+        &clear_color
+    };
+
+    auto& tri_cmd_buf = command_buffers_triangle[current_frame];
+
+    app.BeginCommandBuffer(&tri_cmd_buf);
+
+    tri_cmd_buf->vkCmdBeginRenderPass(tri_cmd_buf, &pass_begin_triangle, VK_SUBPASS_CONTENTS_INLINE);
+    tri_cmd_buf->vkCmdBindPipeline(tri_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_triangle);
+    tri_cmd_buf->vkCmdDraw(tri_cmd_buf, 3, 1, 0, 0);
+    tri_cmd_buf->vkCmdEndRenderPass(tri_cmd_buf);
+    LOG_ASSERT(==, data->logger(), VK_SUCCESS,
+        app.EndAndSubmitCommandBuffer(
+            &tri_cmd_buf,
+            &app.render_queue(),
+            {},
+            {},
+            {render_finished_triangle[current_frame].get_raw_object()},
+            VK_NULL_HANDLE
+        )
+    );
+
     while(!data->WindowClosing()) {
+        // RP1
         app.device()->vkWaitForFences(
             app.device(),
             1,
-            &command_trackers_post[current_frame].rendering_fence->get_raw_object(),
+            &command_trackers_post[next_frame].rendering_fence->get_raw_object(),
             VK_TRUE,
             UINT64_MAX
         );
 
+        app.device()->vkResetFences(
+            app.device(),
+            1,
+            &command_trackers_post[next_frame].rendering_fence->get_raw_object()
+        );
+
+        VkRenderPassBeginInfo pass_begin_triangle {
+            VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            nullptr,
+            render_pass_triangle,
+            framebuffers_triangle[next_frame].get_raw_object(),
+            {{0, 0}, {app.swapchain().width(), app.swapchain().height()}},
+            1,
+            &clear_color
+        };
+
+        auto& tri_cmd_buf = command_buffers_triangle[next_frame];
+
+        app.BeginCommandBuffer(&tri_cmd_buf);
+
+        tri_cmd_buf->vkCmdBeginRenderPass(tri_cmd_buf, &pass_begin_triangle, VK_SUBPASS_CONTENTS_INLINE);
+        tri_cmd_buf->vkCmdBindPipeline(tri_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_triangle);
+        tri_cmd_buf->vkCmdDraw(tri_cmd_buf, 3, 1, 0, 0);
+        tri_cmd_buf->vkCmdEndRenderPass(tri_cmd_buf);
+        LOG_ASSERT(==, data->logger(), VK_SUCCESS,
+            app.EndAndSubmitCommandBuffer(
+                &tri_cmd_buf,
+                &app.render_queue(),
+                {},
+                {},
+                {render_finished_triangle[next_frame].get_raw_object()},
+                VK_NULL_HANDLE
+            )
+        );
+
+        // RP2
         app.device()->vkAcquireNextImageKHR(
             app.device(),
             app.swapchain().get_raw_object(),
@@ -491,22 +565,6 @@ int main_entry(const entry::EntryData* data) {
             progress_post.erase(image_index);
         }
 
-        app.device()->vkResetFences(
-            app.device(),
-            1,
-            &command_trackers_post[current_frame].rendering_fence->get_raw_object()
-        );
-
-        VkRenderPassBeginInfo pass_begin_triangle {
-            VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            nullptr,
-            render_pass_triangle,
-            framebuffers_triangle[current_frame].get_raw_object(),
-            {{0, 0}, {app.swapchain().width(), app.swapchain().height()}},
-            1,
-            &clear_color
-        };
-
         VkRenderPassBeginInfo pass_begin_post {
             VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
             nullptr,
@@ -516,25 +574,6 @@ int main_entry(const entry::EntryData* data) {
             1,
             &clear_color
         };
-
-        auto& tri_cmd_buf = command_buffers_triangle[current_frame];
-
-        app.BeginCommandBuffer(&tri_cmd_buf);
-
-        tri_cmd_buf->vkCmdBeginRenderPass(tri_cmd_buf, &pass_begin_triangle, VK_SUBPASS_CONTENTS_INLINE);
-        tri_cmd_buf->vkCmdBindPipeline(tri_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_triangle);
-        tri_cmd_buf->vkCmdDraw(tri_cmd_buf, 3, 1, 0, 0);
-        tri_cmd_buf->vkCmdEndRenderPass(tri_cmd_buf);
-        LOG_ASSERT(==, data->logger(), VK_SUCCESS,
-            app.EndAndSubmitCommandBuffer(
-                &tri_cmd_buf,
-                &app.render_queue(),
-                {},
-                {},
-                {render_finished_triangle[current_frame].get_raw_object()},
-                VK_NULL_HANDLE
-            )
-        );
 
         auto& post_cmd_buf = command_trackers_post[current_frame].command_buffer;
         vulkan::VkCommandBuffer& post_ref_cmd = *post_cmd_buf;
@@ -599,7 +638,8 @@ int main_entry(const entry::EntryData* data) {
 
         app.present_queue()->vkQueuePresentKHR(app.present_queue(), &present_info);
 
-        current_frame = (current_frame + 1) % app.swapchain_images().size();
+        current_frame = next_frame;
+        next_frame = (next_frame + 1) % app.swapchain_images().size();
     }
 
     app.device()->vkDeviceWaitIdle(app.device());
