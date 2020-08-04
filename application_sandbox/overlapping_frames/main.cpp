@@ -27,6 +27,7 @@
 #include "vulkan_wrapper/descriptor_set_wrapper.h"
 #include "vulkan_wrapper/sub_objects.h"
 
+// depending on the complexity of the use, maybe have proper getters and setters as opposed to raw field access.
 struct CommandTracker {
     containers::unique_ptr<vulkan::VkCommandBuffer> command_buffer;
     containers::unique_ptr<vulkan::VkFence> rendering_fence;
@@ -358,6 +359,7 @@ int main_entry(const entry::EntryData* data) {
 
     vulkan::VulkanApplication app(data->allocator(), data->logger(), data);
 
+    // "temp image" : find a better name
     auto temp_images = buildTempImages(app, data);
     vulkan::VulkanModel screen(data->allocator(), data->logger(), screen_data);
 
@@ -375,6 +377,7 @@ int main_entry(const entry::EntryData* data) {
         {},
         init_fence.get_raw_object()
     );
+    // move this as late as possible (because it stalls everything), probably move to right before main loop
     app.device()->vkWaitForFences(
         app.device(),
         1,
@@ -384,7 +387,14 @@ int main_entry(const entry::EntryData* data) {
     );
 
     // Default Sampler
+    // if RP2 just reads the pixel it writes, then we can use input attachement instead of sampling
     auto sampler = CreateDefaultSampler(&app.device());
+
+    // Name renderpasses:
+    // RP1: "gbuffer" pass: (g == geometry)
+    // RP2: post-processing pass
+
+    // Group all work related to a single render pass in one code block, rather than interleaving RP preparation
 
     // Pipeline Layout
     auto post_pipeline_layout = app.CreatePipelineLayout({{{
@@ -396,6 +406,7 @@ int main_entry(const entry::EntryData* data) {
     }}});
 
     // Triangle Render Pass
+    // gbuffer
     auto render_pass_triangle = buildRenderPass(
         app,
         VK_IMAGE_LAYOUT_UNDEFINED,
@@ -434,6 +445,10 @@ int main_entry(const entry::EntryData* data) {
     containers::vector<vulkan::VkSemaphore> render_finished_post(data->allocator());
     containers::vector<CommandTracker> command_trackers_post(data->allocator());
     containers::unordered_map<uint32_t, uint32_t> progress_post(data->allocator());
+
+    // Try and gather all these vectors into a single vector fo "FrameData"-style struct,
+    // see e.g. present_region sample. 
+    // We may two sets, one per RP? see if it makes things easy. Or a single one with two sub-structs
 
     for(int index = 0; index < app.swapchain_images().size(); index++) {
         command_buffers_triangle.push_back(app.GetCommandBuffer());
@@ -498,8 +513,13 @@ int main_entry(const entry::EntryData* data) {
         )
     );
 
+    // MAIN LOOP ======
+
+    // print something every 20 frames so we can see progress.
+
     while(!data->WindowClosing()) {
-        // RP1
+
+        // RP1 for next_frame
         app.device()->vkWaitForFences(
             app.device(),
             1,
@@ -543,7 +563,10 @@ int main_entry(const entry::EntryData* data) {
             )
         );
 
-        // RP2
+        // RP2 for current_frame
+
+        // have a sempahore per swapchain image
+
         app.device()->vkAcquireNextImageKHR(
             app.device(),
             app.swapchain().get_raw_object(),
@@ -553,6 +576,14 @@ int main_entry(const entry::EntryData* data) {
             &image_index
         );
 
+        // the semaphore that will be signaled by vkAcquireNextImageKHR should be passed
+        // as a sempahore to wait on to the vkqueuesubmit that uses this image.
+
+        // Other samples do like this: the last queueSubmit signals a fence, and that let you
+        // know when all associated resources can be reused. And you wait for that fence before
+        // starting to prepare again the same frame/swapchain image index.
+
+        // This is probably overkill, let's wait for Andrew's review on GH.
         if (progress_post.find(image_index) != progress_post.end()) {
             auto frame_index = progress_post[image_index];
             app.device()->vkWaitForFences(
@@ -608,20 +639,21 @@ int main_entry(const entry::EntryData* data) {
                 &post_ref_cmd,
                 &app.render_queue(),
                 {
-                    image_acquired[current_frame].get_raw_object(),
-                    render_finished_triangle[current_frame].get_raw_object()
+                    image_acquired[current_frame].get_raw_object(), // wait for image
+                    render_finished_triangle[current_frame].get_raw_object() // wait for RP1: not needed? maybe implicit synchro is enough.
                 },
                 {
                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
                 },
-                {render_finished_post[current_frame].get_raw_object()},
-                command_trackers_post[current_frame].rendering_fence->get_raw_object()
+                {render_finished_post[current_frame].get_raw_object()}, // RP2 is done
+                command_trackers_post[current_frame].rendering_fence->get_raw_object() // frame fence
             )
         );
 
         progress_post.insert({image_index, current_frame});
 
+        // this variable should be named "wait_semaphores" :)
         VkSemaphore signal_semaphores[] = {render_finished_post[current_frame].get_raw_object()};
         VkSwapchainKHR swapchains[] = {app.swapchain().get_raw_object()};
 
@@ -640,6 +672,9 @@ int main_entry(const entry::EntryData* data) {
 
         current_frame = next_frame;
         next_frame = (next_frame + 1) % app.swapchain_images().size();
+
+        // Might need to set number of swapchain images.
+        // and assert that we have at least 3.
     }
 
     app.device()->vkDeviceWaitIdle(app.device());
