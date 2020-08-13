@@ -77,7 +77,8 @@ vulkan::VkRenderPass buildRenderPass(vulkan::VulkanApplication* app,
 }
 
 vulkan::VulkanGraphicsPipeline buildRaymarcherPipeline(
-    vulkan::VulkanApplication* app, vulkan::VkRenderPass* render_pass) {
+    vulkan::VulkanApplication* app, vulkan::VkRenderPass* render_pass,
+    vulkan::VulkanModel* screen) {
   // Build Triangle Pipeline
   vulkan::PipelineLayout pipeline_layout(app->CreatePipelineLayout({{}}));
   vulkan::VulkanGraphicsPipeline pipeline =
@@ -87,6 +88,7 @@ vulkan::VulkanGraphicsPipeline buildRaymarcherPipeline(
   pipeline.AddShader(VK_SHADER_STAGE_FRAGMENT_BIT, "main", raymarcher::frag);
 
   pipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+  pipeline.SetInputStreams(screen);
   pipeline.SetScissor({
       {0, 0},                                                // offset
       {app->swapchain().width(), app->swapchain().height()}  // extent
@@ -104,6 +106,83 @@ vulkan::VulkanGraphicsPipeline buildRaymarcherPipeline(
   pipeline.Commit();
 
   return pipeline;
+}
+
+containers::vector<vulkan::VkImageView> buildSwapchainImageViews(
+    vulkan::VulkanApplication* app, const entry::EntryData* data) {
+  containers::vector<vulkan::VkImageView> image_views(data->allocator());
+  image_views.reserve(app->swapchain_images().size());
+
+  for (int index = 0; index < app->swapchain_images().size(); index++) {
+    VkImage& swapchain_image = app->swapchain_images()[index];
+
+    VkImageViewCreateInfo image_view_create_info{
+        VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,  // sType
+        nullptr,                                   // pNext
+        0,                                         // flags
+        swapchain_image,                           // image
+        VK_IMAGE_VIEW_TYPE_2D,                     // viewType
+        app->swapchain().format(),                 // format
+        {
+            VK_COMPONENT_SWIZZLE_IDENTITY,  // components.r
+            VK_COMPONENT_SWIZZLE_IDENTITY,  // components.g
+            VK_COMPONENT_SWIZZLE_IDENTITY,  // components.b
+            VK_COMPONENT_SWIZZLE_IDENTITY,  // components.a
+        },
+        {
+            VK_IMAGE_ASPECT_COLOR_BIT,  // subresourceRange.aspectMask
+            0,                          // subresourceRange.baseMipLevel
+            1,                          // subresourceRange.levelCount
+            0,                          // subresourceRange.baseArrayLayer
+            1,                          // subresourceRange.layerCount
+        },
+    };
+
+    VkImageView raw_image_view;
+    LOG_ASSERT(
+        ==, data->logger(),
+        app->device()->vkCreateImageView(app->device(), &image_view_create_info,
+                                         nullptr, &raw_image_view),
+        VK_SUCCESS);
+    image_views.push_back(
+        vulkan::VkImageView(raw_image_view, nullptr, &app->device()));
+  }
+
+  return image_views;
+}
+
+containers::vector<vulkan::VkFramebuffer> buildFramebuffers(
+    vulkan::VulkanApplication* app, const vulkan::VkRenderPass& render_pass,
+    const containers::vector<vulkan::VkImageView>& image_views,
+    const entry::EntryData* data) {
+  containers::vector<vulkan::VkFramebuffer> framebuffers(data->allocator());
+  framebuffers.reserve(app->swapchain_images().size());
+
+  for (int index = 0; index < app->swapchain_images().size(); index++) {
+    VkFramebufferCreateInfo framebuffer_create_info{
+        VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,  // sType
+        nullptr,                                    // pNext
+        0,                                          // flags
+        render_pass,                                // renderPass
+        1,                                          // attachmentCount
+        &image_views[index].get_raw_object(),       // attachments
+        app->swapchain().width(),                   // width
+        app->swapchain().height(),                  // height
+        1                                           // layers
+    };
+
+    VkFramebuffer raw_framebuffer;
+    LOG_ASSERT(
+        ==, data->logger(),
+        app->device()->vkCreateFramebuffer(
+            app->device(), &framebuffer_create_info, nullptr, &raw_framebuffer),
+        VK_SUCCESS);
+
+    framebuffers.push_back(
+        vulkan::VkFramebuffer(raw_framebuffer, nullptr, &app->device()));
+  }
+
+  return framebuffers;
 }
 
 int main_entry(const entry::EntryData* data) {
