@@ -17,6 +17,16 @@
 #include "vulkan_helpers/vulkan_application.h"
 #include "vulkan_helpers/vulkan_model.h"
 
+namespace raymarcher {
+uint32_t vert[] =
+#include "raymarcher.vert.spv"
+    ;
+
+uint32_t frag[] =
+#include "raymarcher.frag.spv"
+    ;
+};  // namespace raymarcher
+
 namespace screen_model {
 #include "fullscreen_quad.obj.h"
 }

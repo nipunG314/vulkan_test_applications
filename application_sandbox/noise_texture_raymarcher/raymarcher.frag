@@ -1,4 +1,4 @@
-/* Copyright 2017 Google Inc.
+/* Copyright 2020 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,7 @@
 #version 450
 
 layout(location = 0) out vec4 out_color;
-layout (location = 1) in vec2 texcoord;
-
-
 
 void main() {
-    out_color = vec4(texcoord, 0.0, 1.0);
+    out_color = vec4(1.0, 0.0, 0.0, 1.0);
 }

@@ -14,8 +14,8 @@
 
 add_shader_library(noise_texture_raymarcher_shaders
   SOURCES
-    cube.frag
-    cube.vert
+    raymarcher.frag
+    raymarcher.vert
   SHADER_DEPS
     shader_library
 )
