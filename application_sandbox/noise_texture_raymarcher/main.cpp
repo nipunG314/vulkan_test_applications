@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "support/containers/unique_ptr.h"
+#include "support/containers/vector.h"
 #include "support/entry/entry.h"
 #include "vulkan_helpers/helper_functions.h"
 #include "vulkan_helpers/vulkan_application.h"
 #include "vulkan_helpers/vulkan_model.h"
+#include "vulkan_wrapper/command_buffer_wrapper.h"
+#include "vulkan_wrapper/sub_objects.h"
 
 namespace raymarcher {
 uint32_t vert[] =
@@ -31,6 +35,18 @@ namespace screen_model {
 #include "fullscreen_quad.obj.h"
 }
 const auto& screen_data = screen_model::model;
+
+struct FrameData {
+  // Command Buffers
+  containers::unique_ptr<vulkan::VkCommandBuffer> raymarcher_cmd_buf;
+
+  // Semaphores
+  containers::unique_ptr<vulkan::VkSemaphore> image_acquired;
+  containers::unique_ptr<vulkan::VkSemaphore> raymarcher_render_finished;
+
+  // Fences
+  containers::unique_ptr<vulkan::VkFence> rendering_fence;
+};
 
 vulkan::VkRenderPass buildRenderPass(vulkan::VulkanApplication* app,
                                      VkImageLayout initial_layout,
@@ -209,6 +225,28 @@ int main_entry(const entry::EntryData* data) {
   auto raymarcher_framebuffers = buildFramebuffers(
       &app, raymarcher_render_pass, raymarcher_image_views, data);
   VkClearValue clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
+
+  // FrameData
+  containers::vector<FrameData> frameData(data->allocator());
+  frameData.resize(app.swapchain_images().size());
+
+  for (int index = 0; index < app.swapchain_images().size(); index++) {
+    frameData[index].raymarcher_cmd_buf =
+        containers::make_unique<vulkan::VkCommandBuffer>(
+            data->allocator(), app.GetCommandBuffer());
+    frameData[index].image_acquired =
+        containers::make_unique<vulkan::VkSemaphore>(
+            data->allocator(), vulkan::CreateSemaphore(&app.device()));
+    frameData[index].raymarcher_render_finished =
+        containers::make_unique<vulkan::VkSemaphore>(
+            data->allocator(), vulkan::CreateSemaphore(&app.device()));
+    frameData[index].rendering_fence = containers::make_unique<vulkan::VkFence>(
+        data->allocator(), vulkan::CreateFence(&app.device(), 1));
+  }
+
+  // Frame Counter
+  uint32_t current_frame = 0;
+  uint32_t image_index;
 
   // Wait for Screen Model to be initialized
   app.device()->vkWaitForFences(app.device(), 1, &init_fence.get_raw_object(),
