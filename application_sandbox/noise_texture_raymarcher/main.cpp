@@ -200,6 +200,16 @@ int main_entry(const entry::EntryData* data) {
   app.EndAndSubmitCommandBuffer(&init_cmd_buf, &app.render_queue(), {}, {}, {},
                                 init_fence.get_raw_object());
 
+  // Raymarching Render Pass
+  auto raymarcher_render_pass = buildRenderPass(
+      &app, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+  auto raymarcher_pipeline =
+      buildRaymarcherPipeline(&app, &raymarcher_render_pass, &screen);
+  auto raymarcher_image_views = buildSwapchainImageViews(&app, data);
+  auto raymarcher_framebuffers = buildFramebuffers(
+      &app, raymarcher_render_pass, raymarcher_image_views, data);
+  VkClearValue clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
+
   // Wait for Screen Model to be initialized
   app.device()->vkWaitForFences(app.device(), 1, &init_fence.get_raw_object(),
                                 VK_TRUE, UINT64_MAX);
