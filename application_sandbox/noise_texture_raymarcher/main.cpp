@@ -22,6 +22,50 @@ namespace screen_model {
 }
 const auto& screen_data = screen_model::model;
 
+vulkan::VkRenderPass buildRenderPass(vulkan::VulkanApplication* app,
+                                     VkImageLayout initial_layout,
+                                     VkImageLayout final_layout) {
+  // Build render pass
+  VkAttachmentReference color_attachment = {
+      0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+  vulkan::VkRenderPass render_pass = app->CreateRenderPass(
+      {{
+          0,                                 // flags
+          app->swapchain().format(),         // format
+          VK_SAMPLE_COUNT_1_BIT,             // samples
+          VK_ATTACHMENT_LOAD_OP_CLEAR,       // loadOp
+          VK_ATTACHMENT_STORE_OP_STORE,      // storeOp
+          VK_ATTACHMENT_LOAD_OP_DONT_CARE,   // stenilLoadOp
+          VK_ATTACHMENT_STORE_OP_DONT_CARE,  // stenilStoreOp
+          initial_layout,                    // initialLayout
+          final_layout                       // finalLayout
+      }},                                    // AttachmentDescriptions
+      {{
+          0,                                // flags
+          VK_PIPELINE_BIND_POINT_GRAPHICS,  // pipelineBindPoint
+          0,                                // inputAttachmentCount
+          nullptr,                          // pInputAttachments
+          1,                                // colorAttachmentCount
+          &color_attachment,                // colorAttachment
+          nullptr,                          // pResolveAttachments
+          nullptr,                          // pDepthStencilAttachment
+          0,                                // preserveAttachmentCount
+          nullptr                           // pPreserveAttachments
+      }},                                   // SubpassDescriptions
+      {{
+          VK_SUBPASS_EXTERNAL,                            // srcSubpass
+          0,                                              // dstSubpass
+          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // srcStageMask
+          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // dstStageMsdk
+          0,                                              // srcAccessMask
+          VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+              VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,  // dstAccessMask
+          0                                          // dependencyFlags
+      }});
+
+  return render_pass;
+}
+
 int main_entry(const entry::EntryData* data) {
   data->logger()->LogInfo("Application Startup");
 
