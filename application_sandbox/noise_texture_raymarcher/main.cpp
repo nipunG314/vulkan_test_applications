@@ -252,6 +252,77 @@ int main_entry(const entry::EntryData* data) {
   app.device()->vkWaitForFences(app.device(), 1, &init_fence.get_raw_object(),
                                 VK_TRUE, UINT64_MAX);
 
+  // Main Loop
+  while (!data->WindowClosing()) {
+    // Raymarcher RP for current frame
+    app.device()->vkWaitForFences(
+        app.device(), 1,
+        &frameData[current_frame].rendering_fence->get_raw_object(), VK_TRUE,
+        UINT64_MAX);
+
+    app.device()->vkResetFences(
+        app.device(), 1,
+        &frameData[current_frame].rendering_fence->get_raw_object());
+
+    app.device()->vkAcquireNextImageKHR(
+        app.device(), app.swapchain().get_raw_object(), UINT64_MAX,
+        frameData[current_frame].image_acquired->get_raw_object(),
+        static_cast<VkFence>(VK_NULL_HANDLE), &image_index);
+
+    VkRenderPassBeginInfo raymarcher_pass_begin{
+        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        nullptr,
+        raymarcher_render_pass,
+        raymarcher_framebuffers[current_frame].get_raw_object(),
+        {{0, 0}, {app.swapchain().width(), app.swapchain().height()}},
+        1,
+        &clear_color};
+
+    auto& raymarcher_buf = frameData[current_frame].raymarcher_cmd_buf;
+    auto& ref_buf = *raymarcher_buf;
+
+    app.BeginCommandBuffer(raymarcher_buf.get());
+    vulkan::RecordImageLayoutTransition(
+        app.swapchain_images()[image_index],
+        {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}, VK_IMAGE_LAYOUT_UNDEFINED, 0,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, raymarcher_buf.get());
+
+    ref_buf->vkCmdBeginRenderPass(ref_buf, &raymarcher_pass_begin,
+                                  VK_SUBPASS_CONTENTS_INLINE);
+    ref_buf->vkCmdBindPipeline(ref_buf, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                               raymarcher_pipeline);
+    screen.Draw(&ref_buf);
+    ref_buf->vkCmdEndRenderPass(ref_buf);
+
+    LOG_ASSERT(==, data->logger(), VK_SUCCESS,
+               app.EndAndSubmitCommandBuffer(
+                   &ref_buf, &app.render_queue(),
+                   {frameData[current_frame].image_acquired->get_raw_object()},
+                   {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
+                   {frameData[current_frame]
+                        .raymarcher_render_finished->get_raw_object()},
+                   frameData[current_frame].rendering_fence->get_raw_object()));
+
+    VkSemaphore wait_semaphores[] = {
+        frameData[current_frame].raymarcher_render_finished->get_raw_object()};
+    VkSwapchainKHR swapchains[] = {app.swapchain().get_raw_object()};
+
+    VkPresentInfoKHR present_info{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+                                  nullptr,
+                                  1,
+                                  wait_semaphores,
+                                  1,
+                                  swapchains,
+                                  &image_index,
+                                  nullptr};
+
+    app.present_queue()->vkQueuePresentKHR(app.present_queue(), &present_info);
+
+    current_frame = (current_frame + 1) % app.swapchain_images().size();
+  }
+
+  app.device()->vkDeviceWaitIdle(app.device());
   data->logger()->LogInfo("Application Shutdown");
 
   return 0;
