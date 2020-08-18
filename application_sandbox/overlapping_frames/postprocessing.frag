@@ -17,12 +17,32 @@
 
 layout(binding = 0) uniform sampler2D texSampler;
 
+layout(push_constant) uniform PushConstant {
+    float width;
+    float height;
+} pushConstant;
+
 layout(location = 0) in vec2 fragTexCoord;
 
 layout(location = 0) out vec4 out_color;
 
+float norm[25] = float[](
+    0.00407830342, 0.01835236541, 0.0489396411, 0.01835236541, 0.00407830342,
+    0.01835236541, 0.0489396411, 0.08564437194, 0.0489396411, 0.01835236541,
+    0.0489396411, 0.08564437194, 0.10277324633, 0.08564437194, 0.0489396411,
+    0.01835236541, 0.0489396411, 0.08564437194, 0.0489396411, 0.01835236541,
+    0.00407830342, 0.01835236541, 0.0489396411, 0.01835236541, 0.00407830342
+);
+
 void main() {
-    vec4 tex_color = texture(texSampler, fragTexCoord);
-    vec4 adj_color = 1.0 - tex_color;
-    out_color = vec4(adj_color.rgb, 1.0);
+    vec4 tex_color = vec4(0.0, 0.0, 0.0, 0.0);
+
+    for(int i=0; i<5; i++) {
+        for(int j=0; j<5; j++) {
+            vec2 tex_coord = fragTexCoord + vec2(i-2, j-2) / vec2(pushConstant.width, pushConstant.height);
+            tex_color += texture(texSampler, tex_coord) * norm[i * 5 + j];
+        }
+    }
+
+    out_color = vec4(tex_color.rgb, 1.0);
 }

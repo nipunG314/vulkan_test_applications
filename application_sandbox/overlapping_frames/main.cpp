@@ -85,6 +85,11 @@ struct GeometryPushConstantData {
   float time;
 };
 
+struct PostPushConstantData {
+  float width;
+  float height;
+};
+
 namespace gBuffer {
 uint32_t vert[] =
 #include "triangle.vert.spv"
@@ -415,12 +420,12 @@ int main_entry(const entry::EntryData* data) {
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     );
 
-    VkPushConstantRange range;
-    range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    range.offset = 0;
-    range.size = (uint32_t)sizeof(GeometryPushConstantData);
+    VkPushConstantRange g_range;
+    g_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    g_range.offset = 0;
+    g_range.size = (uint32_t)sizeof(GeometryPushConstantData);
 
-    auto g_pipeline_layout = app.CreatePipelineLayout({{{}}}, {range});
+    auto g_pipeline_layout = app.CreatePipelineLayout({{{}}}, {g_range});
     auto g_pipeline =
         buildTrianglePipeline(&app, &g_render_pass, &g_pipeline_layout);
     auto g_image_views = buildSamplerImageViews(&app, sampler_images, data);
@@ -431,19 +436,28 @@ int main_entry(const entry::EntryData* data) {
         data
     );
 
+    // Geometry Push Constant Data
+    std::chrono::steady_clock::time_point start_time_point =
+        std::chrono::steady_clock::now();
+    float triangle_speed = 0.008333333f;
+    GeometryPushConstantData g_push_constant_data{0.0f};
+
     // Post Render Pass
     auto post_render_pass = buildRenderPass(
         &app,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
     );
-    auto post_pipeline_layout = app.CreatePipelineLayout({{{
-        0,
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        1,
-        VK_SHADER_STAGE_FRAGMENT_BIT,
-        nullptr
-    }}});
+
+    VkPushConstantRange post_range;
+    post_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    post_range.offset = 0;
+    post_range.size = (uint32_t)sizeof(PostPushConstantData);
+
+    auto post_pipeline_layout = app.CreatePipelineLayout(
+        {{{0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
+           VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}}},
+        {post_range});
     auto post_pipeline = buildPostPipeline(&app, &post_pipeline_layout, &post_render_pass, &screen);
     auto post_image_views = buildSwapchainImageViews(&app, data);
     auto post_framebuffers = buildFramebuffers(
@@ -452,6 +466,11 @@ int main_entry(const entry::EntryData* data) {
         post_image_views,
         data
     );
+
+    // Post Push Constant Data
+    PostPushConstantData post_push_constant_data{
+        static_cast<float>(app.swapchain().width()),
+        static_cast<float>(app.swapchain().height())};
 
     // FrameData
     containers::vector<FrameData> frameData(data->allocator());
@@ -488,15 +507,11 @@ int main_entry(const entry::EntryData* data) {
         );
     }
 
-    VkClearValue clear_color = {0.40f, 0.94f, 0.59f, 1.0f};
+    VkClearValue clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
 
     uint32_t current_frame = 0;
     uint32_t next_frame = 1;
     uint32_t image_index;
-    std::chrono::steady_clock::time_point start_time_point =
-        std::chrono::steady_clock::now();
-    float triangle_speed = 0.008333333f;
-    GeometryPushConstantData g_push_constant_data{0.0f};
 
     // First Geometry RP
     app.device()->vkResetFences(
@@ -655,6 +670,9 @@ int main_entry(const entry::EntryData* data) {
             nullptr
         );
         post_ref_cmd->vkCmdBindPipeline(post_ref_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, post_pipeline);
+        post_ref_cmd->vkCmdPushConstants(
+            post_ref_cmd, post_pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+            sizeof(PostPushConstantData), &post_push_constant_data);
         screen.Draw(&post_ref_cmd);
         post_ref_cmd->vkCmdEndRenderPass(post_ref_cmd);
         LOG_ASSERT(==, data->logger(), VK_SUCCESS,
